@@ -11,6 +11,7 @@ import { parseArgs } from "node:util";
 import { childEnv } from "../tlc/env.ts";
 import { findTlc } from "../tlc/locate.ts";
 import { killGroup, messageOf } from "../tlc/process.ts";
+import { hold } from "./hold.ts";
 
 const USAGE = `Usage: tlachart SPEC.tla [--config FILE] [--view FILE] [--out DIR]
 
@@ -58,19 +59,6 @@ try {
 
 const codeOf = (error: unknown) =>
 	error instanceof Error && "code" in error ? error.code : undefined;
-
-// Test-only: writes "<file>.reached" and waits for <file>, so a replay can kill the command at a
-// named point. Inert unless TLACHART_HOLD_<POINT> names a file.
-const hold = (point: string, value: string) => {
-	const file = process.env[`TLACHART_HOLD_${point}`];
-	if (!file) return;
-	// A reader that kills on the marker must not see it before its content, so publish it atomically.
-	fs.writeFileSync(`${file}.reached.tmp`, value);
-	fs.renameSync(`${file}.reached.tmp`, `${file}.reached`);
-	while (!fs.existsSync(file)) {
-		// A SIGKILL still lands: the loop is only here to stay alive.
-	}
-};
 
 try {
 	const configFile = flags.config ?? specFile.replace(/\.tla$/, ".cfg");
