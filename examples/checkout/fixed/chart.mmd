@@ -1,0 +1,28 @@
+---
+title: "Checkout"
+---
+stateDiagram-v2
+  direction LR
+  state "At the same time" as all {
+    state "Screen" as r0 {
+      s0: Cart
+      s1: Address
+      s2: Paying
+      s3: Paid
+      [*] --> s0
+      s0 --> s1: you go to the address step
+      s1 --> s0: you go back
+      s1 --> s2: you go to payment
+      s2 --> s1: you go back [when No charge]
+      s2 --> s3: the charge goes through [when One charge pending]
+    }
+    --
+    state "Payment" as r1 {
+      s4: No charge
+      s5: One charge pending
+      s6: Charged once
+      [*] --> s4
+      s4 --> s5: you double-click Pay or you press Pay [when Paying]
+      s5 --> s6: the charge goes through
+    }
+  }

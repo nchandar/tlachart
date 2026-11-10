@@ -1,0 +1,30 @@
+---
+title: "Retry after a timeout"
+---
+stateDiagram-v2
+  direction LR
+  state "At the same time" as all {
+    state "Client" as r0 {
+      s0: Idle
+      s1: Sending
+      s2: Waiting for the reply
+      s3: Settled
+      s4: Backing off
+      s5: Waiting after a retry
+      [*] --> s0
+      s0 --> s1: you press Pay
+      s1 --> s2: the server takes the request [when Not charged]
+      s2 --> s3: the reply arrives
+      s2 --> s4: the request times out
+      s4 --> s1: the client retries
+      s1 --> s5: the server takes the request [when Charged once]
+      s5 --> s3: the reply arrives
+    }
+    --
+    state "Server" as r1 {
+      s6: Not charged
+      s7: Charged once
+      [*] --> s6
+      s6 --> s7: the server takes the request [when Sending]
+    }
+  }

@@ -1,0 +1,8 @@
+node_modules/
+formal/
+test/corpus/
+test/grid/
+examples/*/buggy/
+examples/*/fixed/
+bun.lock
+LICENSE-pstack

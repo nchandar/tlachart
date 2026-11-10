@@ -1,0 +1,50 @@
+---
+title: "Checkout"
+---
+stateDiagram-v2
+  direction LR
+  state "Legend" as legend {
+    lg0: Breaks NeverChargedTwice
+    lg1: Path to the NeverChargedTwice bug
+  }
+  class lg0 breaks
+  class lg1 bugPath
+  state "At the same time" as all {
+    state "Screen" as r0 {
+      s0: Cart
+      s1: Address
+      s2: Paying
+      s3: Paid
+      [*] --> s0
+      s0 --> s1: you go to the address step
+      s1 --> s0: you go back
+      s1 --> s2: you go to payment
+      s2 --> s1: you go back [when No charge]
+      s2 --> s3: the charge goes through [when Charged once, one pending or One charge pending]
+    }
+    --
+    state "Payment" as r1 {
+      s4: No charge
+      s5: One charge pending
+      s6: Two charges pending
+      s7: Charged once
+      s8: Charged once, one pending
+      s9: Charged twice
+      [*] --> s4
+      s4 --> s5: you press Pay [when Paying]
+      s4 --> s6: you double-click Pay [when Paying]
+      s5 --> s7: the charge goes through
+      s6 --> s8: the charge goes through
+      s8 --> s9: the charge goes through
+    }
+  }
+  classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2.5px,color:#cd2834
+  class s0 bugPath
+  class s1 bugPath
+  class s2 bugPath
+  class s3 bugPath
+  class s4 bugPath
+  class s6 bugPath
+  class s8 bugPath
+  class s9 breaks
+  class s9 bugPath

@@ -1,0 +1,27 @@
+---
+title: "Order lifecycle"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: Open
+    lg1: Closed
+  }
+  class lg0 blue
+  class lg1 tan
+  s0: Placed
+  s1: Cancelled
+  s2: Paid
+  s3: Refunded
+  s4: Shipped
+  [*] --> s0
+  s0 --> s1: you cancel
+  s0 --> s2: you pay
+  s2 --> s1: you cancel
+  s2 --> s3: you ask for a refund
+  s2 --> s4: the order ships
+  s4 --> s3: you ask for a refund
+  class s0 blue
+  class s1 tan
+  class s2 blue
+  class s3 tan
+  class s4 blue

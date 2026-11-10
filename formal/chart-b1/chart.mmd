@@ -1,0 +1,36 @@
+---
+title: "OutFolder: a SIGKILL before the janitor exists"
+---
+stateDiagram-v2
+  state "Legend" as legend {
+    lg0: Path to the P3 bug
+    lg1: Repeats forever, so P3 breaks
+  }
+  class lg0 bugPath
+  class lg1 repeats
+  s0: start / none / none
+  s1: checked / none / none
+  s2: stage / none / none
+  s3: tmp / none / none
+  s4: spawned / waiting / none
+  s5: dead / waiting / none
+  s6: dead / loading / none
+  s7: dead / exited / none
+  [*] --> s0
+  s0 --> s1: CheckOut
+  s1 --> s2: MakeStage
+  s2 --> s3: MakeTmp
+  s3 --> s3: OutsideWrite
+  s3 --> s4: SpawnWorker
+  s4 --> s4: Sigint
+  s4 --> s5: Sigkill
+  s5 --> s6: WorkerLoadView
+  s6 --> s7: WorkerFail
+  class s0 bugPath
+  class s1 bugPath
+  class s2 bugPath
+  class s3 bugPath
+  class s4 bugPath
+  class s5 bugPath
+  class s6 bugPath
+  class s7 repeats

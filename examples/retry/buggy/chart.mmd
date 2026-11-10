@@ -1,0 +1,49 @@
+---
+title: "Retry after a timeout"
+---
+stateDiagram-v2
+  direction LR
+  state "Legend" as legend {
+    lg0: Breaks AtMostOnce
+    lg1: Path to the AtMostOnce bug
+  }
+  class lg0 breaks
+  class lg1 bugPath
+  state "At the same time" as all {
+    state "Client" as r0 {
+      s0: Idle
+      s1: Sending
+      s2: Waiting for the reply
+      s3: Settled
+      s4: Backing off
+      s5: Waiting after a retry
+      [*] --> s0
+      s0 --> s1: you press Pay
+      s1 --> s2: the server takes the request [when Not charged]
+      s2 --> s3: the reply arrives
+      s2 --> s4: the request times out
+      s4 --> s1: the client retries
+      s1 --> s5: the server takes the request [when Charged once]
+      s5 --> s3: the reply arrives
+    }
+    --
+    state "Server" as r1 {
+      s6: Not charged
+      s7: Charged once
+      s8: Charged twice
+      [*] --> s6
+      s6 --> s7: the server takes the request [when Sending]
+      s7 --> s8: the server takes the request [when Sending]
+    }
+  }
+  classDef breaks fill:#ffecee,stroke:#e72e3b,stroke-width:2.5px,color:#cd2834
+  class s0 bugPath
+  class s1 bugPath
+  class s2 bugPath
+  class s4 bugPath
+  class s5 breaks
+  class s5 bugPath
+  class s6 bugPath
+  class s7 bugPath
+  class s8 breaks
+  class s8 bugPath

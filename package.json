@@ -1,0 +1,62 @@
+{
+	"name": "tlachart",
+	"version": "0.1.0",
+	"type": "module",
+	"license": "MIT",
+	"description": "A Mermaid chart for TLA+ specs, with the shortest path to each broken rule.",
+	"keywords": [
+		"tla",
+		"tlaplus",
+		"tlc",
+		"statechart",
+		"mermaid",
+		"model-checking",
+		"formal-methods"
+	],
+	"author": "Niranjan Chandarraj",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/nchandar/tlachart.git"
+	},
+	"homepage": "https://github.com/nchandar/tlachart",
+	"bugs": {
+		"url": "https://github.com/nchandar/tlachart/issues"
+	},
+	"bin": {
+		"tlachart": "src/cli/main.ts"
+	},
+	"files": [
+		"src",
+		"README.md",
+		"LICENSE",
+		"LICENSE-pstack"
+	],
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"types": "./src/index.ts",
+	"engines": {
+		"bun": ">=1.1.5"
+	},
+	"scripts": {
+		"test": "bun test --timeout 120000 --parallel --max-concurrency 4 test",
+		"test:serial": "bun test --timeout 120000 test",
+		"model": "bun formal/model.ts",
+		"model:variants": "bun formal/check-variants.ts",
+		"lint": "eslint .",
+		"typecheck": "tsc --noEmit",
+		"check": "bun run typecheck && bun run lint && bun run format:check",
+		"format": "prettier --write .",
+		"format:check": "prettier --check ."
+	},
+	"devDependencies": {
+		"@eslint/js": "10.0.1",
+		"@types/node": "26.6.6",
+		"eslint": "10.14.0",
+		"eslint-plugin-tsdoc": "0.5.4",
+		"fast-check": "4.5.3",
+		"prettier": "3.9.10",
+		"typescript": "6.0.3",
+		"typescript-eslint": "8.72.2"
+	}
+}
