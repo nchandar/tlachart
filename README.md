@@ -4,6 +4,7 @@
 [![ESLint](https://github.com/nchandar/tlachart/actions/workflows/eslint.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/eslint.yml)
 [![TypeScript](https://github.com/nchandar/tlachart/actions/workflows/types.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/types.yml)
 [![Tests](https://github.com/nchandar/tlachart/actions/workflows/test.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/test.yml)
+[![Package](https://github.com/nchandar/tlachart/actions/workflows/package.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/package.yml)
 [![Formal model](https://github.com/nchandar/tlachart/actions/workflows/formal.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/formal.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
