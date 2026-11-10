@@ -1,6 +1,10 @@
 import os from "node:os";
 
-const slots = Math.min(8, os.availableParallelism());
+// TLACHART_TEST_SLOTS pins the count so a small runner can be reproduced on a big machine.
+const slots = Math.max(
+	1,
+	Math.floor(Number(process.env.TLACHART_TEST_SLOTS) || Math.min(8, os.availableParallelism())),
+);
 const waiting: (() => void)[] = [];
 let free = slots;
 
