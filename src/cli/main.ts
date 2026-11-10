@@ -64,7 +64,9 @@ const codeOf = (error: unknown) =>
 const hold = (point: string, value: string) => {
 	const file = process.env[`TLACHART_HOLD_${point}`];
 	if (!file) return;
-	fs.writeFileSync(`${file}.reached`, value);
+	// A reader that kills on the marker must not see it before its content, so publish it atomically.
+	fs.writeFileSync(`${file}.reached.tmp`, value);
+	fs.renameSync(`${file}.reached.tmp`, `${file}.reached`);
 	while (!fs.existsSync(file)) {
 		// A SIGKILL still lands: the loop is only here to stay alive.
 	}
