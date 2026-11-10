@@ -14,24 +14,24 @@ once per rule, then replayed on the code. The model, its variants and the covera
 | Repo that holds the covered code | this repository |
 | Sync commit | the sync commit is HEAD of the release branch |
 | Model folder | `formal/` |
-| Drift | `git diff` against the sync commit is empty for the three covered files; the line ranges below are from that tree |
+| Drift | `git diff` against the sync commit is empty for the covered files; the line ranges below are from that tree |
 
-Re-run the model when any of `src/cli/main.ts`, `src/cli/check-worker.ts` or `src/tlc/process.ts`
-changes.
+Re-run the model when any of `src/cli/main.ts`, `src/cli/check-worker.ts`, `src/cli/hold.ts` or
+`src/tlc/process.ts` changes.
 
 ## Files and functions covered
 
 | File | What the model names | Lines at the sync commit |
 |---|---|---|
-| `src/cli/main.ts` | CheckOut, RefuseNonEmpty (the link refusal, readdir then realpath, the non-empty refusal) | 77-109 |
-| `src/cli/main.ts` | SpawnJanitor (folder names picked first, janitor spawned before either exists) | 111-134 |
-| `src/cli/main.ts` | MakeStage, MakeTmp (mkdir 0700, not mkdtemp) | 136-137 |
-| `src/cli/main.ts` | SpawnWorker (detached, stdin pipe), TellJanitor (pgid on stdin), ReleaseWorker (go line) | 155-174 |
-| `src/cli/main.ts` | MainRace, KillGroup, Decide, MakeParents, RenameDone, RenameRefused | 175-205 |
-| `src/cli/main.ts` | RemoveStage, RemoveTmp, StopJanitor, Exit (the finally and `process.exit`) | 215-220 |
-| `src/cli/main.ts` | Sigint, Sigkill (the handler at 31-39 records the first SIGINT/SIGTERM; SIGKILL has no handler) | 31-39 |
-| `src/cli/main.ts` | WorkerEofExit (the worker's go handshake) | 171-174 |
-| `src/cli/check-worker.ts` | WorkerLoadView, WorkerStartTlc, WorkerSpin, WorkerMakeDraft, WorkerWriteFile, WorkerRenameDone, WorkerExit, WorkerFail | 15-56 |
+| `src/cli/main.ts` | CheckOut, RefuseNonEmpty (the link refusal, readdir then realpath, the non-empty refusal) | 67-99 |
+| `src/cli/main.ts` | SpawnJanitor (folder names picked first, janitor spawned before either exists) | 101-124 |
+| `src/cli/main.ts` | MakeStage, MakeTmp (mkdir 0700, not mkdtemp) | 126-127 |
+| `src/cli/main.ts` | SpawnWorker (detached, stdin pipe), TellJanitor (pgid on stdin), ReleaseWorker (go line) | 145-164 |
+| `src/cli/main.ts` | MainRace, KillGroup, Decide, MakeParents, RenameDone, RenameRefused | 170-200 |
+| `src/cli/main.ts` | RemoveStage, RemoveTmp, StopJanitor, Exit (the finally and `process.exit`) | 205-210 |
+| `src/cli/main.ts` | Sigint, Sigkill (the handler at 33-41 records the first SIGINT/SIGTERM; SIGKILL has no handler) | 33-41 |
+| `src/cli/main.ts` | WorkerEofExit (the worker's go handshake) | 161-167 |
+| `src/cli/check-worker.ts` | WorkerLoadView, WorkerStartTlc, WorkerSpin, WorkerMakeDraft, WorkerWriteFile, WorkerRenameDone, WorkerExit, WorkerFail | 16-60 |
 | `src/tlc/process.ts` | `killGroup` (kill -KILL of the worker's group) | 43-50 |
 | `src/tlc/process.ts` | `runToFiles` (TLC runs in the worker's group, so the group kill reaches it) | 73-104 |
 
@@ -112,12 +112,14 @@ That writes `chart.mmd` and `report.md` matching `formal/chart-b1/`.
 ## Replay on the code (red first, then green)
 
 The hold seam names a file per point: `TLACHART_HOLD_WORKER`, `TLACHART_HOLD_RELEASE` and
-`TLACHART_HOLD_RENAME`; main writes `<file>.reached` and waits for `<file>`; inert unless set. The
-first two tests kill main at those points with SIGKILL; the last holds main after the
-rename.
+`TLACHART_HOLD_RENAME` in main, plus `TLACHART_HOLD_WRITE` in the worker; the process writes
+`<file>.reached` and waits for `<file>`; inert unless set. The first two tests kill main at those
+points with SIGKILL; the third holds main after the rename; the last signals the command while the
+worker is held between the parts of `chart.mmd`.
 
 | Test | Red before the fix | Green |
 |---|---|---|
+| `SIGINT/SIGTERM while the command writes its files stops it, and it writes nothing` | stderr `''` instead of the stop line, exit 1, and a whole `--out`: the command finished between the poll and the signal (3 red in 200 runs with 12 CPU burners) | pass with the worker held mid-file; 200/200 green with the same burners |
 | `a SIGKILL of the command before the worker starts leaves no folder behind` | `[ ".out.tlachart-BpkNQx" ]` left in the parent folder (no janitor existed yet) before the fix | pass after the fix |
 | `a SIGKILL of the command after the worker starts stops the worker and removes both folders` | `Process 76914 is still running.` (worker ran on with no janitor to kill it) before the fix | pass after the fix |
 | `a result already renamed into --out keeps its exit code when a late read fails` | exit 2 (`2 !== 1`) with the whole folder already in `--out` before the fix | pass after the fix |

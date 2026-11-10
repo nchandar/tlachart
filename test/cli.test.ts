@@ -169,15 +169,18 @@ function startCommand(
 	);
 }
 
-async function signalWhile<T extends { dir: string; reached: (parent: string) => boolean }>(
-	signal: NodeJS.Signals,
-	setup: (fakes: string) => T & { java?: string },
-) {
+async function signalWhile<
+	T extends { dir: string; reached: (parent: string) => boolean; env?: NodeJS.ProcessEnv },
+>(signal: NodeJS.Signals, setup: (fakes: string) => T & { java?: string }) {
 	const fakes = tmpDir("tlachart-fakes-");
 	const parent = tmpDir("tlachart-parent-");
 	const tmpdir = tmpDir("tlachart-tmpdir-");
 	const phase = setup(fakes);
-	const child = startCommand(phase.dir, parent, { java: phase.java, tmpdir });
+	const child = startCommand(phase.dir, parent, {
+		java: phase.java,
+		tmpdir,
+		env: phase.env,
+	});
 	let stderr = "";
 	child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
 	const closed = once(child, "close");
@@ -479,17 +482,14 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
 		`${signal} while the command writes its files stops it, and it writes nothing`,
 		{ timeout: 60_000 },
 		async () => {
+			const fakes = tmpDir("tlachart-fakes-");
+			const hold = path.join(fakes, "hold");
 			await signalWhile(signal, () => ({
 				dir: gridCase(150),
-				reached: (parent) => {
-					for (const f of fs.readdirSync(parent, { recursive: true, encoding: "utf8" }))
-						if (
-							path.basename(f) === "chart.mmd" &&
-							fs.statSync(path.join(parent, f), { throwIfNoEntry: false })?.size
-						)
-							return true;
-					return false;
-				},
+				// Hold the worker between the parts of chart.mmd, so the signal lands inside the write
+				// instead of racing the finished command.
+				env: { TLACHART_HOLD_WRITE: hold },
+				reached: () => fs.existsSync(`${hold}.reached`),
 			}));
 		},
 	);

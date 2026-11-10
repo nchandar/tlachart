@@ -11,6 +11,7 @@ import { checkView } from "../parse/view-module.ts";
 import { buildOutputs } from "../build-outputs.ts";
 import { check } from "../tlc/check.ts";
 import { messageOf } from "../tlc/process.ts";
+import { hold } from "./hold.ts";
 
 const [stage, specFile, configFile, viewFile] = process.argv.slice(2);
 
@@ -40,8 +41,12 @@ try {
 	for (const [name, parts] of files) {
 		const fd = fs.openSync(path.join(draft, name), "wx");
 		try {
-			for (const part of parts)
+			for (const part of parts) {
 				fs.writeSync(fd, typeof part === "string" ? Buffer.from(part) : part);
+				// Test-only: lets a replay signal between the parts of a file, so a half-written
+				// draft is proven to leave no trace.
+				hold("WRITE", name);
+			}
 			fs.writeSync(fd, "\n");
 		} finally {
 			fs.closeSync(fd);
