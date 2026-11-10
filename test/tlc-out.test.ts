@@ -59,43 +59,37 @@ const start = async (name: string) => {
 	return { tool, twin, out, stderr };
 };
 
-// Start every spec's runs now; each subtest only waits for its own.
+// Start every spec's runs now; each test only waits for its own.
 const runs = skip
 	? []
 	: fs.readdirSync(corpus).map((name) => ({ name, result: limit(() => start(name)) }));
 
-test(
-	"each corpus spec's TLC output reads as plain TLC prints it at -workers 1",
-	{ skip, timeout: 600_000 },
-	async (t) => {
-		await Promise.all(
-			runs.map(({ name, result }) =>
-				t.test(name, async () => {
-					const { tool, twin, out, stderr } = await result;
-					assert.equal(stderr, "");
-					const twins = fs.readdirSync(twin).filter((f) => f.endsWith(".out"));
-					assert.ok(twins.includes("ChartRun.out"), "the drawing run has a plain twin");
-					for (const run of twins) {
-						const exit = run.replace(/\.out$/, ".exit");
-						assert.equal(maybe(path.join(tool, exit)), maybe(path.join(twin, exit)), exit);
-						assert.equal(
-							steady(plain(read(path.join(tool, run)))),
-							steady(read(path.join(twin, run))),
-							run,
-						);
-					}
-					assert.equal(
-						steady(read(path.join(out, "tlc.out"))),
-						steady(`${read(path.join(twin, "verdict-1.out"))}\n`),
-					);
-					const verdicts = new Set<string>();
-					for (const run of twins)
-						if (run.startsWith("verdict-")) verdicts.add(steady(`${read(path.join(twin, run))}\n`));
-					for (const f of fs.readdirSync(out))
-						if (/^tlc-\w+\.out$/.test(f))
-							assert.ok(verdicts.has(steady(read(path.join(out, f)))), f);
-				}),
-			),
-		);
-	},
-);
+for (const { name, result } of runs)
+	test(
+		`${name} reads TLC's tool output as plain TLC prints it at -workers 1`,
+		{ skip },
+		async () => {
+			const { tool, twin, out, stderr } = await result;
+			assert.equal(stderr, "");
+			const twins = fs.readdirSync(twin).filter((f) => f.endsWith(".out"));
+			assert.ok(twins.includes("ChartRun.out"), "the drawing run has a plain twin");
+			for (const run of twins) {
+				const exit = run.replace(/\.out$/, ".exit");
+				assert.equal(maybe(path.join(tool, exit)), maybe(path.join(twin, exit)), exit);
+				assert.equal(
+					steady(plain(read(path.join(tool, run)))),
+					steady(read(path.join(twin, run))),
+					run,
+				);
+			}
+			assert.equal(
+				steady(read(path.join(out, "tlc.out"))),
+				steady(`${read(path.join(twin, "verdict-1.out"))}\n`),
+			);
+			const verdicts = new Set<string>();
+			for (const run of twins)
+				if (run.startsWith("verdict-")) verdicts.add(steady(`${read(path.join(twin, run))}\n`));
+			for (const f of fs.readdirSync(out))
+				if (/^tlc-\w+\.out$/.test(f)) assert.ok(verdicts.has(steady(read(path.join(out, f)))), f);
+		},
+	);

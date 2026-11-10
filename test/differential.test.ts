@@ -395,24 +395,34 @@ async function answer(c: Case) {
 	}
 }
 
-test(
-	"the compiler answers each rule as plain TLC does for generated models",
-	{ skip },
-	async () => {
-		await fc.assert(
-			fc.asyncProperty(MODEL.map(caseOf), async (c) => {
-				await answer(c);
-			}),
-			{
-				numRuns: Number(process.env.TLACHART_DIFFERENTIAL_RUNS ?? 20),
-				seed: process.env.TLACHART_DIFFERENTIAL_SEED
-					? Number(process.env.TLACHART_DIFFERENTIAL_SEED)
-					: undefined,
-				includeErrorInReport: true,
-			},
-		);
-	},
-);
+// Several tests, each under the 120 s timeout: one test of every run took longer than that on a
+// 2-core runner.
+const chunks = 4;
+const total = Number(process.env.TLACHART_DIFFERENTIAL_RUNS ?? 20);
+const base = process.env.TLACHART_DIFFERENTIAL_SEED
+	? Number(process.env.TLACHART_DIFFERENTIAL_SEED)
+	: undefined;
+for (let k = 0; k < chunks; k++) {
+	const numRuns = Math.floor(total / chunks) + (k < total % chunks ? 1 : 0);
+	if (!numRuns) continue;
+	test(
+		`the compiler answers each rule as plain TLC does for generated models (${k + 1} of ${chunks})`,
+		{ skip },
+		async () => {
+			await fc.assert(
+				fc.asyncProperty(MODEL.map(caseOf), async (c) => {
+					await answer(c);
+				}),
+				{
+					numRuns,
+					// Each chunk takes its own seed, so TLACHART_DIFFERENTIAL_SEED still replays all runs.
+					seed: base === undefined ? undefined : base + k,
+					includeErrorInReport: true,
+				},
+			);
+		},
+	);
+}
 
 const moduleText = (name: string, ...lines: string[]) =>
 	[`---- MODULE ${name} ----`, ...lines, "====", ""].join("\n");
