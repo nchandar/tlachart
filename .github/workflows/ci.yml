@@ -5,12 +5,17 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       # The jar is pinned with the same sha256 as src/tlc/locate.ts, so CI runs a known TLC.
       TLA2TOOLS: ${{ github.workspace }}/tla2tools.jar
