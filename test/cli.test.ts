@@ -1349,13 +1349,16 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
 		async () => {
 			const tmp = tmpDir("tlachart-env-");
 			const bin = path.join(tmp, "bin");
-			const pidFile = path.join(tmp, "mise.pid");
+			// One file per pid: two mise calls run at once, and a killed shell must not leave a
+			// shared pid file empty just because it died between its truncate and its write.
+			const pids = path.join(tmp, "pids");
 			const tmpdir = path.join(tmp, "tmp");
 			fs.mkdirSync(bin);
+			fs.mkdirSync(pids);
 			fs.mkdirSync(tmpdir);
 			fs.writeFileSync(
 				path.join(bin, "mise"),
-				`#!/bin/sh\necho $$ > ${JSON.stringify(pidFile)}\nexec sleep 30\n`,
+				`#!/bin/sh\necho $$ > ${JSON.stringify(pids)}/$$\nexec sleep 30\n`,
 				{ mode: 0o755 },
 			);
 			const env: NodeJS.ProcessEnv = {
@@ -1378,12 +1381,15 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
 			let stderr = "";
 			child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
 			const closed = once(child, "close");
-			while (!fs.existsSync(pidFile) || !read(pidFile)) await sleep(20);
+			while (!fs.readdirSync(pids).length) await sleep(20);
 			child.kill(signal);
 			const [status] = (await closed) as [number | null];
 			assert.equal(status, 128 + os.constants.signals[signal]);
 			assert.equal(stderr, `${signal} stopped the check, so the command wrote nothing.\n`);
-			await assertGone(Number(read(pidFile)));
+			// A mise call that starts after the abort still registers, so watch for a moment and
+			// check that none of the recorded pids outlives the command.
+			for (const end = Date.now() + 500; Date.now() < end; await sleep(20))
+				for (const pid of fs.readdirSync(pids)) await assertGone(Number(pid));
 			await assertEmpty(tmpdir);
 		},
 	);
