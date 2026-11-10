@@ -16,7 +16,7 @@ Bun is required. Node is not supported: it refuses TypeScript under `node_module
 
 ## Requirements
 
-- Bun 1.1.5 or later. Tested with 1.4.4.
+- Bun 1.1.39 or later. Tested with 1.4.4.
 - Java 11 or later. Tested with 25.
 - TLC 1.7.4 as `tla2tools.jar`, from the [TLA+ releases](https://github.com/tlaplus/tlaplus/releases).
 - Either set `TLA2TOOLS` (path to the jar) and optionally `JAVA` (default `java`), or install
