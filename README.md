@@ -25,16 +25,17 @@ Bun is required. Node is not supported: it refuses TypeScript under `node_module
 
 ## Install and run
 
-```sh
-bunx tlachart SPEC.tla
-```
-
-`bunx` runs the published package without installing it. To keep the command:
+Bun must be on PATH for every command below: the bin is `#!/usr/bin/env bun`.
 
 ```sh
-bun add -g tlachart
-tlachart SPEC.tla
+bunx tlachart SPEC.tla         # run it once
+bun add -g tlachart            # install the command
+pnpm dlx tlachart SPEC.tla     # run it once with pnpm
+pnpm add -g tlachart           # install it with pnpm
+npm install -g tlachart        # install it with npm
 ```
+
+That includes `npx tlachart`: it only downloads the package, so it needs Bun installed first.
 
 It prints the report and writes `chart.mmd`, `report.md`, `tlc.out` and `tlc-RULE.out` to a new
 folder next to the spec (`SPEC-chart/`), or to `--out`, which must be new or empty and not a symlink. `chart.mmd` is
