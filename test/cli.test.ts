@@ -214,6 +214,28 @@ async function assertGone(pid: number) {
 	}
 }
 
+// A writer publishes a file under a temporary name and renames it, so the final name only
+// appears complete. Wait for it, or fail the test instead of hanging.
+async function waitFor(file: string, timeout = 10_000) {
+	const end = Date.now() + timeout;
+	while (!fs.existsSync(file)) {
+		assert.ok(Date.now() < end, `Never saw ${file}.`);
+		await sleep(10);
+	}
+}
+
+// A pid file can appear before its content, and 0 would make process.kill check this process's
+// own group, so wait for a positive integer rather than trusting the file's existence.
+async function readPid(file: string, timeout = 10_000) {
+	const end = Date.now() + timeout;
+	for (;;) {
+		const pid = fs.existsSync(file) ? Number(read(file)) : 0;
+		if (Number.isInteger(pid) && pid > 0) return pid;
+		assert.ok(Date.now() < end, `No pid in ${file}.`);
+		await sleep(10);
+	}
+}
+
 async function assertEmpty(dir: string) {
 	for (let i = 0; i < 250 && fs.readdirSync(dir).length; i++) await sleep(20);
 	assert.deepEqual(fs.readdirSync(dir), []);
@@ -239,6 +261,17 @@ function gridCase(n: number) {
 	return dir;
 }
 
+test("a pid file that appears before its content is read only once it holds the pid", async () => {
+	const file = path.join(tmpDir("tlachart-pid-"), "java.pid");
+	fs.writeFileSync(file, "");
+	const writing = (async () => {
+		await sleep(50);
+		fs.writeFileSync(file, "42");
+	})();
+	assert.equal(await readPid(file), 42);
+	await writing;
+});
+
 function sleepyJava(fakes: string) {
 	const java = path.join(fakes, "java.mjs");
 	const pidFile = path.join(fakes, "java.pid");
@@ -246,7 +279,11 @@ function sleepyJava(fakes: string) {
 		java,
 		`#!/usr/bin/env node\nimport fs from "node:fs";\n` +
 			`process.on("SIGTERM", () => {});\n` +
-			`fs.writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));\n` +
+			// A reader that sees the file appear could read it empty and take 0 for its own process
+			// group, so write the pid under a temporary name and rename it into place.
+			`const file = ${JSON.stringify(pidFile)};\n` +
+			`fs.writeFileSync(file + ".tmp", String(process.pid));\n` +
+			`fs.renameSync(file + ".tmp", file);\n` +
 			`setTimeout(() => {}, 60_000);\n`,
 		{ mode: 0o755 },
 	);
@@ -263,10 +300,10 @@ test(
 		const { java, pidFile } = sleepyJava(fakes);
 		const child = startCommand(path.join(corpus, "DieHard"), parent, { java, tmpdir });
 		const exited = once(child, "exit");
-		while (!fs.existsSync(pidFile)) await sleep(20);
+		const pid = await readPid(pidFile);
 		child.kill("SIGKILL");
 		await exited;
-		await assertGone(Number(read(pidFile)));
+		await assertGone(pid);
 		await assertEmpty(parent);
 		await assertEmpty(tmpdir);
 	},
@@ -287,7 +324,8 @@ test(
 				`import fs from "node:fs";\n` +
 					`export const state = (v) => {\n` +
 					`  if (!fs.existsSync(${JSON.stringify(drawing)})) {\n` +
-					`    fs.writeFileSync(${JSON.stringify(drawing)}, String(process.pid));\n` +
+					`    fs.writeFileSync(${JSON.stringify(drawing)} + ".tmp", String(process.pid));\n` +
+					`    fs.renameSync(${JSON.stringify(drawing)} + ".tmp", ${JSON.stringify(drawing)});\n` +
 					`    for (const end = Date.now() + 20_000; Date.now() < end && !fs.existsSync(${JSON.stringify(release)}); );\n` +
 					`  }\n` +
 					`  return JSON.stringify(v);\n` +
@@ -296,11 +334,11 @@ test(
 		);
 		const child = startCommand(dir, parent, { tmpdir });
 		const exited = once(child, "exit");
-		while (!fs.existsSync(drawing) || !read(drawing)) await sleep(20);
+		await waitFor(drawing);
 		child.kill("SIGKILL");
 		await exited;
 		fs.writeFileSync(release, "");
-		await assertGone(-Number(read(drawing)));
+		await assertGone(-(await readPid(drawing)));
 		await assertEmpty(parent);
 		await assertEmpty(tmpdir);
 	},
@@ -318,10 +356,10 @@ async function killAtHold(point: "WORKER" | "RELEASE") {
 		env: { [`TLACHART_HOLD_${point}`]: hold },
 	});
 	const exited = once(child, "exit");
-	while (!fs.existsSync(`${hold}.reached`)) await sleep(20);
+	await waitFor(`${hold}.reached`);
 	child.kill("SIGKILL");
 	await exited;
-	return { pid: Number(read(`${hold}.reached`)), parent, tmpdir };
+	return { pid: await readPid(`${hold}.reached`), parent, tmpdir };
 }
 
 test(
@@ -360,7 +398,7 @@ test(
 		let stdout = "";
 		child.stdout.on("data", (chunk: Buffer) => (stdout += chunk.toString()));
 		const closed = once(child, "close");
-		while (!fs.existsSync(`${hold}.reached`)) await sleep(20);
+		await waitFor(`${hold}.reached`);
 		// The hold is after the rename, so --out holds the whole result already.
 		const report = path.join(parent, "out", "report.md");
 		const whole = read(report);
@@ -385,8 +423,8 @@ test(
 		let stderr = "";
 		child.stderr.on("data", (chunk: Buffer) => (stderr += chunk.toString()));
 		const closed = once(child, "close");
-		while (!fs.existsSync(pidFile) || !read(pidFile)) await sleep(20);
-		const ps = spawnSync("ps", ["-o", "ppid=", "-p", read(pidFile)], { encoding: "utf8" });
+		const pid = await readPid(pidFile);
+		const ps = spawnSync("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8" });
 		process.kill(Number(ps.stdout), "SIGKILL");
 		const [status] = (await closed) as [number | null];
 		assert.equal(stderr, "SIGKILL killed the check, so the command wrote nothing.\n");
@@ -408,7 +446,7 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
 					reached: () => fs.existsSync(fake.pidFile),
 				};
 			});
-			await assertGone(Number(read(pidFile)));
+			await assertGone(await readPid(pidFile));
 		},
 	);
 
@@ -424,7 +462,8 @@ for (const signal of ["SIGINT", "SIGTERM"] satisfies NodeJS.Signals[]) {
 						`import fs from "node:fs";\n` +
 							`export const state = (v) => {\n` +
 							`  if (!fs.existsSync(${JSON.stringify(drawing)})) {\n` +
-							`    fs.writeFileSync(${JSON.stringify(drawing)}, "");\n` +
+							`    fs.writeFileSync(${JSON.stringify(drawing)} + ".tmp", "");\n` +
+							`    fs.renameSync(${JSON.stringify(drawing)} + ".tmp", ${JSON.stringify(drawing)});\n` +
 							`    for (const end = Date.now() + 30_000; Date.now() < end; );\n` +
 							`  }\n` +
 							`  return JSON.stringify(v);\n` +
@@ -841,7 +880,7 @@ test("a view that ends the check while TLC runs stops TLC, and the command exits
 	});
 	assert.equal(r.status, 2);
 	assert.deepEqual(r.files, []);
-	await assertGone(Number(read(pidFile)));
+	await assertGone(await readPid(pidFile));
 });
 
 test("a group that only a mixed chart state gets still needs a color", () => {
