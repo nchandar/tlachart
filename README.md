@@ -6,6 +6,7 @@
 [![Tests](https://github.com/nchandar/tlachart/actions/workflows/test.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/test.yml)
 [![Package](https://github.com/nchandar/tlachart/actions/workflows/package.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/package.yml)
 [![Formal model](https://github.com/nchandar/tlachart/actions/workflows/formal.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/formal.yml)
+[![npm](https://img.shields.io/npm/v/tlachart.svg)](https://www.npmjs.com/package/tlachart)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A Mermaid chart for TLA+ specs. Give it a spec; TLC checks the rules, and you get a chart of the
