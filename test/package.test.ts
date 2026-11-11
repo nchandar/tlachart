@@ -45,7 +45,7 @@ test("the library entry is both the export and the types", () => {
 test("the package is publishable and points at the repo", () => {
 	assert.ok(!pkg.private, "package.json is not private");
 	assert.equal(pkg.author, "Niranjan Chandarraj");
-	assert.equal(pkg.repository.url, "https://github.com/nchandar/tlachart.git");
+	assert.equal(pkg.repository.url, "git+https://github.com/nchandar/tlachart.git");
 	assert.equal(pkg.homepage, "https://github.com/nchandar/tlachart");
 	assert.equal(pkg.bugs.url, "https://github.com/nchandar/tlachart/issues");
 });

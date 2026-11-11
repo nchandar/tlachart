@@ -16,7 +16,7 @@
 	"author": "Niranjan Chandarraj",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/nchandar/tlachart.git"
+		"url": "git+https://github.com/nchandar/tlachart.git"
 	},
 	"homepage": "https://github.com/nchandar/tlachart",
 	"bugs": {
