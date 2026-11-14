@@ -1,224 +1,185 @@
 # tlachart
 
 [![CI](https://github.com/nchandar/tlachart/actions/workflows/ci.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/ci.yml)
-[![ESLint](https://github.com/nchandar/tlachart/actions/workflows/eslint.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/eslint.yml)
-[![TypeScript](https://github.com/nchandar/tlachart/actions/workflows/types.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/types.yml)
-[![Tests](https://github.com/nchandar/tlachart/actions/workflows/test.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/test.yml)
-[![Package](https://github.com/nchandar/tlachart/actions/workflows/package.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/package.yml)
-[![Formal model](https://github.com/nchandar/tlachart/actions/workflows/formal.yml/badge.svg)](https://github.com/nchandar/tlachart/actions/workflows/formal.yml)
 [![npm](https://img.shields.io/npm/v/tlachart.svg)](https://www.npmjs.com/package/tlachart)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A Mermaid chart for TLA+ specs. Give it a spec; TLC checks the rules, and you get a chart of the
-states in the reader's words plus a report with the shortest path to each broken rule.
+Your TLA+ spec, drawn.
 
-Bun is required. Node is not supported: it refuses TypeScript under `node_modules`
-(`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`).
+- Give it a spec. TLC checks every rule.
+- Get a chart of the states, in your words.
+- Get the shortest path to each bug, so you can see it and argue with it.
 
-## Requirements
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> Placed
+  Placed --> Paid: you pay
+  Paid --> Shipped: the order ships
+  Placed --> Refunded: you ask for a refund
+  classDef ok fill:#e6f4ea,stroke:#2e9e5b,stroke-width:2px,color:#1b6b3a
+  classDef bug fill:#fff3e6,stroke:#e8730c,stroke-width:2.5px,color:#b85a06
+  class Placed,Paid,Shipped ok
+  class Refunded bug
+```
 
-- Bun 1.1.39 or later. Tested with 1.4.4.
-- Java 11 or later. Tested with 25.
-- TLC 1.7.4 as `tla2tools.jar`, from the [TLA+ releases](https://github.com/tlaplus/tlaplus/releases).
-- Either set `TLA2TOOLS` (path to the jar) and optionally `JAVA` (default `java`), or install
-  [mise](https://mise.jdx.dev). Without `TLA2TOOLS` the command asks mise for the pinned Java 25 and
-  TLC, a download of about 535 MB.
+| Path          | Steps                 | Verdict                                                         |
+| ------------- | --------------------- | --------------------------------------------------------------- |
+| Happy (green) | Placed, Paid, Shipped | the rule holds                                                  |
+| Bug (orange)  | Placed, Refunded      | refund with no payment: the rule `NoRefundBeforePayment` breaks |
 
-## Install and run
+## Example
 
-Bun must be on PATH for every command below: the bin is `#!/usr/bin/env bun`.
+An order. The rule: no refund before payment.
+
+**You write** the spec ([`Order.tla`](examples/order/Order.tla)) and a view that names things:
+
+```tla
+Pay           == status = "placed" /\ status' = "paid" /\ paidEver' = TRUE
+RequestRefund == status \in {"placed", "paid", "shipped"} /\ status' = "refunded" /\ UNCHANGED paidEver
+
+NoRefundBeforePayment == status /= "refunded" \/ paidEver
+```
+
+```js
+// view.mjs
+export const state = (v) =>
+	({
+		placed: "Placed",
+		paid: "Paid",
+		shipped: "Shipped",
+		cancelled: "Cancelled",
+		refunded: "Refunded",
+	})[v.status];
+export const step = (action) =>
+	({ Pay: "you pay", RequestRefund: "you ask for a refund" })[action] ?? action;
+```
+
+```mermaid
+flowchart LR
+  A[Spec.tla + Spec.cfg] --> T{{TLC}}
+  V[view.mjs: your words] --> C
+  T --> C[chart.mmd]
+  T --> R[report.md: shortest path per broken rule]
+```
+
+**You run:**
 
 ```sh
-bunx tlachart SPEC.tla         # run it once
-bun add -g tlachart            # install the command
-pnpm dlx tlachart SPEC.tla     # run it once with pnpm
-pnpm add -g tlachart           # install it with pnpm
-npm install -g tlachart        # install it with npm
+tlachart Order.tla --view view.mjs
 ```
 
-That includes `npx tlachart`: it only downloads the package, so it needs Bun installed first.
+**You get** a chart (`chart.mmd`) and a report (`report.md`):
 
-It prints the report and writes `chart.mmd`, `report.md`, `tlc.out` and `tlc-RULE.out` to a new
-folder next to the spec (`SPEC-chart/`), or to `--out`, which must be new or empty and not a symlink. `chart.mmd` is
-Mermaid text: paste it into a Mermaid viewer or a fenced `mermaid` block on GitHub.
-
-## From source
-
-```sh
-git clone https://github.com/nchandar/tlachart
-cd tlachart
-bun install --frozen-lockfile
-export TLA2TOOLS=$HOME/.local/share/tla/tla2tools.jar
-bun src/cli/main.ts examples/checkout/Checkout.tla --view examples/checkout/view.mjs --out /tmp/checkout-chart
+```mermaid
+stateDiagram-v2
+  [*] --> Placed
+  Placed --> Paid: you pay
+  Placed --> Cancelled: you cancel
+  Placed --> Refunded: you ask for a refund
+  Paid --> Shipped: the order ships
+  Paid --> Cancelled: you cancel
+  Paid --> Refunded: you ask for a refund
+  Shipped --> Refunded: you ask for a refund
+  classDef bug fill:#fff3e6,stroke:#e8730c,stroke-width:2.5px,color:#b85a06
+  class Placed,Refunded bug
 ```
 
-It exits 1 because the seeded bug breaks a rule. The report ends with:
-
 ```
-## NeverChargedTwice breaks
-The shortest path has 5 steps:
-0. Screen Cart, Payment No charge
-1. you go to the address step: Screen Address, Payment No charge
-2. you go to payment: Screen Paying, Payment No charge
-3. you double-click Pay: Screen Paying, Payment Two charges pending
-4. the charge goes through: Screen Paying, Payment Charged once, one pending
-5. the charge goes through: Screen Paid, Payment Charged twice
+## NoRefundBeforePayment breaks
+The shortest path has 1 step:
+0. Placed
+1. you ask for a refund: Refunded
 
 ## Rules that hold
 NoDeadlock
 ```
 
-The fixed spec holds, so the command exits 0:
+Orange is the shortest path to the bug. Exit code 1 means a rule broke, so CI can fail on it.
+
+More: [Checkout](examples/checkout) (front end, parallel regions), [Retry](examples/retry) (back end, idempotency), [Order](examples/order) (groups and colors). Each has a buggy and a fixed spec.
+
+## Install
+
+| Tool | Run once                     | Install                   |
+| ---- | ---------------------------- | ------------------------- |
+| bun  | `bunx tlachart SPEC.tla`     | `bun add -g tlachart`     |
+| pnpm | `pnpm dlx tlachart SPEC.tla` | `pnpm add -g tlachart`    |
+| npm  | `npx tlachart SPEC.tla`      | `npm install -g tlachart` |
+
+| Needs | Version      | Note                                                                                                                                        |
+| ----- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Bun   | 1.1.39+      | runs the command, on PATH                                                                                                                   |
+| Java  | 11+          |                                                                                                                                             |
+| TLC   | 1.7.4        | set `TLA2TOOLS=/path/to/tla2tools.jar`, or install [mise](https://mise.jdx.dev) and the command fetches Java and TLC for you (about 535 MB) |
+| OS    | macOS, Linux |                                                                                                                                             |
+
+## Usage
 
 ```sh
-bun src/cli/main.ts examples/checkout/CheckoutFixed.tla --view examples/checkout/view.mjs --out /tmp/checkout-fixed
+tlachart SPEC.tla [--config FILE] [--view FILE] [--out DIR]
 ```
 
-## Examples
+| Flag       | Default                    | Does                               |
+| ---------- | -------------------------- | ---------------------------------- |
+| `--config` | `SPEC.cfg` beside the spec | TLC config                         |
+| `--view`   | each state's raw values    | module that picks the words        |
+| `--out`    | `SPEC-chart/`              | new or empty folder, not a symlink |
 
-Each example has a buggy spec, a fixed spec, a view, and the chart and report for both.
+Writes `chart.mmd`, `report.md`, `tlc.out`, and `tlc-RULE.out` per broken rule. Paste `chart.mmd` into a fenced `mermaid` block on GitHub.
 
-| Example                       | What it models                                                                           | Buggy rule                                                        |
-| ----------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| [Checkout](examples/checkout) | Front end: cart, address, payment, paid; Pay and a double click; regions Screen, Payment | Never charged twice                                               |
-| [Retry](examples/retry)       | Back end: client, server, timeout, duplicate request, idempotency key                    | Charge applied at most once; the request eventually settles holds |
-| [Order](examples/order)       | Order lifecycle: placed, paid, shipped, cancelled, refunded; groups and colors           | No refund before payment                                          |
+| Exit     | Meaning                     | Output  |
+| -------- | --------------------------- | ------- |
+| 0        | every rule holds            | written |
+| 1        | a rule breaks               | written |
+| 2        | TLC error, or could not run | none    |
+| 130, 143 | SIGINT, SIGTERM             | none    |
 
-The `Fixed` spec removes the seeded bug and exits 0. Committed output is under `buggy/` and `fixed/`.
-Run any example with:
+### The view
+
+| Export                   | Returns                                                                       | Needed       |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------ |
+| `state(vars)`            | string (flat), array (parent states), or object (one parallel region per key) | yes          |
+| `step(action, from, to)` | words for the arrow, or `null` to hide it                                     | no           |
+| `group(vars)`            | phase name                                                                    | no           |
+| `colors`                 | `{ phase: blue \| orange \| purple \| yellow \| teal \| tan \| pink }`        | with `group` |
+| `title`                  | string on top of the chart                                                    | no           |
+
+`vars` is plain JSON: a TLA+ sequence is an object keyed from 1, a set is an array. Keep a chart near 20 arrows.
+
+### Reading the chart
+
+| Mark       | Meaning                                                      |
+| ---------- | ------------------------------------------------------------ |
+| `breaks`   | the rule breaks in every model state behind this chart state |
+| `mayBreak` | it breaks in some of them                                    |
+| `bugPath`  | on the shortest path to a bug                                |
+| `repeats`  | a liveness counterexample loops through it                   |
+
+### Limits
+
+| Limit                       | Value                                                                    |
+| --------------------------- | ------------------------------------------------------------------------ |
+| Chart size                  | 500 states. Above it only the paths to broken rules are drawn            |
+| After the first broken rule | reruns stop at 100,000 states; the rest is listed as "Rules not checked" |
+| TLC workers                 | 1, so shortest paths are stable                                          |
+| `+` or `<=` in a spec       | add `EXTENDS Naturals`                                                   |
+
+### Trust
+
+A spec, its `.cfg`, any `.jar` beside it, and the `--view` module all run as you, with no timeout or memory cap. Use specs you trust, or run in a container.
+
+## From source
 
 ```sh
-bun src/cli/main.ts examples/retry/Retry.tla --view examples/retry/view.mjs --out /tmp/retry-chart
+git clone https://github.com/nchandar/tlachart && cd tlachart
+bun install --frozen-lockfile
+export TLA2TOOLS=$HOME/.local/share/tla/tla2tools.jar
+bun src/cli/main.ts examples/order/Order.tla --view examples/order/view.mjs --out /tmp/order-chart
 ```
 
-## The view module
+`bun run check` runs typecheck, lint and format. `bun test` runs the tests. `bun run model` and `bun run model:variants` check the TLA+ model of the command's own output handling ([formal/coverage.md](formal/coverage.md)).
 
-The view decides the words. It is a `.mjs` or `.ts` module passed with `--view`.
+## Credits
 
-`state(vars)` returns one of:
-
-- a string, for a flat chart: `export const state = (v) => (v.paid ? "Paid" : "Paying")`
-- an array, for parent states: `export const state = (v) => v.main.split(".")`
-- an object, for one parallel region per key: `export const state = (v) => ({ Screen: v.screen, Payment: v.payment })`
-
-`step(action, from, to)` returns the words for an arrow, or `null` to hide it. Steps from the same
-state to the same state with the same label share one arrow. A step that stays in one label is not
-drawn.
-
-`group(vars)` returns a phase name. `colors` is then required, and gives each phase one of `blue`,
-`orange`, `purple`, `yellow`, `teal`, `tan`, `pink`. `title` is a string at the top of the chart.
-
-```js
-const label = {
-	placed: "Placed",
-	paid: "Paid",
-	shipped: "Shipped",
-	cancelled: "Cancelled",
-	refunded: "Refunded",
-};
-
-export const state = (v) => label[v.status];
-
-export const step = (action) =>
-	({
-		Pay: "you pay",
-		Ship: "the order ships",
-		Cancel: "you cancel",
-		RequestRefund: "you ask for a refund",
-		Done: null,
-	})[action] ?? action;
-
-export const group = (v) =>
-	v.status === "cancelled" || v.status === "refunded" ? "Closed" : "Open";
-
-export const colors = { Open: "blue", Closed: "tan" };
-
-export const title = "Order lifecycle";
-```
-
-`vars` is plain JSON: a TLA+ sequence is an object with keys from 1, and a set is an array. Each
-function depends only on its arguments: the command calls it once and uses that answer in both the
-chart and the report.
-
-In a regions chart, write a condition in brackets only when it concerns the same region. The command
-writes the other regions' conditions itself, such as `[when Sending]`. Keep the chart near 20 arrows
-or fewer. Return `null` from `step()` for steps the reader does not need, but keep every chart state
-reachable and an arrow out of every state that has a step.
-
-## Reading the chart and report
-
-`report.md` gives the state count, each broken rule with its shortest path, and the rules that hold.
-TLC goes past a state that breaks a rule, so the chart also shows the states after the bug.
-
-The chart marks states with CSS classes, and the Legend names the rule behind each mark:
-
-| Mark       | Meaning                                                       |
-| ---------- | ------------------------------------------------------------- |
-| `breaks`   | The rule breaks in every model state behind this chart state. |
-| `mayBreak` | The rule breaks in some of the model states behind it.        |
-| `bugPath`  | The state is on the shortest path to a bug.                   |
-| `repeats`  | A liveness counterexample loops through this state.           |
-
-`tlc.out` is what TLC printed for the config as written. Each property that breaks and each rule
-that breaks off the chart also writes `tlc-RULE.out`.
-
-## Exit codes
-
-| Code | Meaning                                                             |
-| ---- | ------------------------------------------------------------------- |
-| 0    | Every rule holds. Output is written.                                |
-| 1    | A rule breaks. Output is written.                                   |
-| 2    | TLC stopped with an error, or the command could not run. No output. |
-| 130  | SIGINT stopped the check. No output.                                |
-| 143  | SIGTERM stopped the check. No output.                               |
-
-## Limits
-
-- The chart budget is 500 states. Above it the chart draws only the paths to broken rules; with no
-  broken rule there is no `chart.mmd`, and the report still gives the state count and each path.
-- After the first broken rule, each rerun stops at 100,000 distinct states. Rules it did not reach
-  are listed under "Rules not checked" in the report.
-- TLC runs with one worker, so shortest paths are deterministic.
-- Windows is unsupported: the command stops TLC through a process group with `/bin/sh`.
-- Add `EXTENDS Naturals` when a spec uses `+` or `<=`, or TLC cannot read it.
-
-## Trust model
-
-A spec is code for TLC, and so is its `.cfg`. A `.jar` or `.class` file beside the spec may be
-loaded too, and the `--view` module is imported into the command's own process. All of this runs
-as you, with your files and network. Use only specs you trust, or run the command in a container
-or a VM.
-
-There is no timeout and no cap on memory or disk. The command passes a trimmed environment to
-TLC and to the view, but that bounds what such code reads, not what it can do.
-
-The mise child, which downloads the pinned Java and TLC, alone gets the proxy and certificate
-variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `ALL_PROXY` in either case, plus
-`SSL_CERT_FILE`, `SSL_CERT_DIR` and `CURL_CA_BUNDLE`); TLC and the view get none of them. Behind
-a proxy you can instead set `TLA2TOOLS` and `JAVA` to skip mise.
-
-## Formal model
-
-`formal/` holds a TLA+ model of the command's output handling.
-
-- **P1, whole or nothing:** a result in `--out` is whole or absent, and user files already there are
-  never overwritten.
-- **P2, nothing outlives the command:** after the command is dead no worker and no TLC remains,
-  whichever signal arrives when.
-- **P3, no folders left:** the staging and temp folders are removed whichever way the command ends.
-
-Run it with `TLA2TOOLS` set (`bun run check` does not need it):
-
-```sh
-bun run model          # the real model: no error
-bun run model:variants # each broken copy must fail on the rule it breaks
-```
-
-It covers `src/cli/main.ts`, `src/cli/check-worker.ts` and `src/tlc/process.ts`: re-run it when any
-of them changes. The bound, the variants and the accepted risks are in
-[formal/coverage.md](formal/coverage.md).
-
-## Credit
-
-Inspired by the `statechart` skill in Lauren Tan's [pstack](https://github.com/cursor/plugins) (MIT).
-Her licence is in [LICENSE-pstack](LICENSE-pstack); this project is MIT, see [LICENSE](LICENSE).
+Inspired by the `statechart` skill in Lauren Tan's [pstack](https://github.com/cursor/plugins) (MIT, [LICENSE-pstack](LICENSE-pstack)). Built on [TLC](https://github.com/tlaplus/tlaplus) and [Mermaid](https://mermaid.js.org). MIT, see [LICENSE](LICENSE).
